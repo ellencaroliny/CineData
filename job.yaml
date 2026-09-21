@@ -1,0 +1,58 @@
+name: CineData_Medallion_Pipeline
+description: >
+  Pipeline ETL do CineData em arquitetura Medallion (Bronze -> Silver -> Gold)
+  executado via Databricks Workflows. Tres tarefas encadeadas: to_Bronze,
+  to_Silver e to_Gold.
+
+schedule:
+  # Diario as 06:00 (America/Sao_Paulo)
+  quartz_cron_expression: 0 0 6 * * ?
+  timezone_id: America/Sao_Paulo
+  pause_status: UNPAUSED
+
+email_notifications:
+  on_failure:
+    - dataeng@rocketlab.com.br
+
+default_cluster:
+  cluster_name: rocketlab-silver-shared
+  spark_version: 15.4.x-scala2.12
+  node_type_id: Standard_DS3_v2
+  num_workers: 2
+  spark_conf:
+    spark.databricks.delta.preview.enabled: true
+  runtime_engine: STANDARD
+
+tasks:
+  - task_key: to_Bronze
+    notebook_task:
+      notebook_path: /Workspace/Users/cine-data/Notebook_1_Landing_to_Bronze
+    job_cluster_key: cine-data-cluster
+    timeout_seconds: 3600
+
+  - task_key: to_Silver
+    notebook_task:
+      notebook_path: /Workspace/Users/cine-data/Notebook_2_Bronze_to_Silver
+    depends_on:
+      - task_key: to_Bronze
+    job_cluster_key: cine-data-cluster
+    timeout_seconds: 3600
+
+  - task_key: to_Gold
+    notebook_task:
+      notebook_path: /Workspace/Users/cine-data/Notebook_3_Silver_to_Gold
+    depends_on:
+      - task_key: to_Silver
+    job_cluster_key: cine-data-cluster
+    timeout_seconds: 3600
+
+job_clusters:
+  - job_cluster_key: cine-data-cluster
+    new_cluster:
+      cluster_name: cine-data-cluster
+      spark_version: 15.4.x-scala2.12
+      node_type_id: Standard_DS3_v2
+      num_workers: 2
+      spark_conf:
+        spark.databricks.delta.preview.enabled: true
+      runtime_engine: STANDARD
